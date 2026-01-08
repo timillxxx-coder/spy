@@ -11,9 +11,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const lobbies = {};
 
-function generateLobbyId(){
-    return Math.random().toString(36).substring(2,8).toUpperCase();
-}
+function generateLobbyId(){ return Math.random().toString(36).substring(2,8).toUpperCase(); }
 
 function broadcastLobbyUpdate(lobbyId){
     const lobby = lobbies[lobbyId];
@@ -23,9 +21,7 @@ function broadcastLobbyUpdate(lobbyId){
 }
 
 function broadcastVoteProgress(lobby){
-    lobby.players.forEach(p=>{
-        p.ws.send(JSON.stringify({ type:'vote_update', voted: lobby.votedCount, total: lobby.players.length }));
-    });
+    lobby.players.forEach(p=>p.ws.send(JSON.stringify({ type:'vote_update', voted: lobby.votedCount, total: lobby.players.length })));
 }
 
 wss.on('connection', ws=>{
@@ -47,76 +43,62 @@ wss.on('connection', ws=>{
         if(data.type==='join_lobby'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby){ ws.send(JSON.stringify({type:'error', message:'Лобби не найдено'})); return; }
-            if(lobby.started){ ws.send(JSON.stringify({type:'error', message:'Игра уже началась'})); return; }
             lobby.players.push({name:data.name, ws});
             currentLobby = data.lobbyId;
             playerName = data.name;
-            ws.send(JSON.stringify({ type:'joined_lobby', lobbyId:data.lobbyId, host:lobby.host }));
-            broadcastLobbyUpdate(currentLobby);
+            ws.send(JSON.stringify({ type:'joined_lobby', lobbyId:data.lobbyId, host:lobby.host, players:lobby.players.map(p=>p.name) }));
+            broadcastLobbyUpdate(data.lobbyId);
         }
 
         if(data.type==='start_game' || data.type==='restart_game'){
             const lobby = lobbies[data.lobbyId];
-            if(!lobby || lobby.host!==data.name) return;
-
-            lobby.started = true;
-            const words=['Бумага','Карандаш','Компьютер','Мяч','Книга'];
-            const word = words[Math.floor(Math.random()*words.length)];
+            if(!lobby) return;
+            const words = ["Бумага", "Карандаш", "Стул", "Компьютер"];
             const spyIndex = Math.floor(Math.random()*lobby.players.length);
-            lobby.spy = lobby.players[spyIndex].name;
-
             lobby.players.forEach((p,i)=>{
-                const role = i===spyIndex?'spy':'word';
-                p.role = role;
+                p.role = i===spyIndex ? 'spy' : 'word';
+                p.word = p.role==='word'? words[Math.floor(Math.random()*words.length)] : null;
+                p.voted=false;
+            });
+            lobby.votedCount=0;
+            lobby.started=true;
+
+            lobby.players.forEach(p=>{
                 p.ws.send(JSON.stringify({
                     type:'game_started',
-                    role,
-                    word: role==='word'?word:null,
-                    totalPlayers: lobby.players.length,
-                    players: lobby.players.map(pl=>pl.name)
+                    role:p.role,
+                    word:p.word,
+                    players:lobby.players.map(x=>x.name),
+                    totalPlayers:lobby.players.length
                 }));
             });
-
-            lobby.votes={};
-            lobby.votedCount=0;
         }
 
         if(data.type==='vote'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby) return;
-            if(!lobby.votes[data.name]){
-                lobby.votes[data.name]=data.target;
-                lobby.votedCount++;
-            }
-
+            const voter = lobby.players.find(p=>p.name===data.name);
+            if(!voter || voter.voted) return;
+            voter.voted = true;
+            voter.voteTarget = data.target;
+            lobby.votedCount++;
             broadcastVoteProgress(lobby);
 
-            if(lobby.votedCount>=lobby.players.length){
-                const voteCounts={};
-                Object.values(lobby.votes).forEach(t=>voteCounts[t]=(voteCounts[t]||0)+1);
-                let max=0, eliminated=null;
-                for(const [p,count] of Object.entries(voteCounts)){
-                    if(count>max){ max=count; eliminated=p; }
-                }
+            if(lobby.votedCount === lobby.players.length){
+                // Определяем выбывшего (тот, кто получил больше всего голосов)
+                const votes = {};
                 lobby.players.forEach(p=>{
-                    p.ws.send(JSON.stringify({ type:'game_ended', spy:lobby.spy, eliminated }));
+                    if(p.voteTarget) votes[p.voteTarget]=(votes[p.voteTarget]||0)+1;
                 });
-            }
-        }
-    });
+                const eliminated = Object.entries(votes).sort((a,b)=>b[1]-a[1])[0][0];
+                const spy = lobby.players.find(p=>p.role==='spy').name;
 
-    ws.on('close', ()=>{
-        if(currentLobby && lobbies[currentLobby]){
-            const lobby = lobbies[currentLobby];
-            lobby.players = lobby.players.filter(p=>p.ws!==ws);
-            if(lobby.players.length===0) delete lobbies[currentLobby];
-            else{
-                if(lobby.host===playerName) lobby.host=lobby.players[0].name;
-                broadcastLobbyUpdate(currentLobby);
+                lobby.players.forEach(p=>{
+                    p.ws.send(JSON.stringify({ type:'game_ended', eliminated, spy }));
+                });
             }
         }
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, ()=>console.log(`Server running on port ${PORT}`));
+server.listen(process.env.PORT || 8080, ()=>console.log('Server started'));
