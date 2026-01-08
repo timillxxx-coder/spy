@@ -86,8 +86,13 @@ function loginUser(){
     };
 
     startBtn.onclick = ()=>{
-        ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
+        if(startBtn.textContent==="Начать игру заново"){
+            ws.send(JSON.stringify({ type:'restart_game', lobbyId, name:username }));
+        } else {
+            ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
+        }
         startBtn.textContent = "Начать игру";
+        startBtn.classList.add('hidden');
     };
 }
 
