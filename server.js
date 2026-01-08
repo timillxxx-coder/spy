@@ -9,7 +9,7 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const lobbies = {}; // { lobbyId: { host, players:[{name,ws,role}], started, spy, votes, votedCount } }
+const lobbies = {}; 
 
 function generateLobbyId() {
     return Math.random().toString(36).substring(2,8).toUpperCase();
@@ -66,10 +66,8 @@ wss.on('connection', ws=>{
         if(data.type==='start_game'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby || lobby.host !== data.name) return;
-            if(lobby.started) return;
             lobby.started = true;
 
-            // Рандомное слово и шпион
             const words = ['Бумага','Карандаш','Компьютер','Мяч','Книга'];
             const word = words[Math.floor(Math.random()*words.length)];
             const spyIndex = Math.floor(Math.random()*lobby.players.length);
