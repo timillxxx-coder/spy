@@ -9,7 +9,7 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const lobbies = {}; 
+const lobbies = {};
 
 function generateLobbyId() {
     return Math.random().toString(36).substring(2,8).toUpperCase();
@@ -63,11 +63,11 @@ wss.on('connection', ws=>{
             broadcastLobbyUpdate(currentLobby);
         }
 
-        if(data.type==='start_game'){
+        if(data.type==='start_game' || data.type==='restart_game'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby || lobby.host !== data.name) return;
-            lobby.started = true;
 
+            lobby.started = true;
             const words = ['Бумага','Карандаш','Компьютер','Мяч','Книга'];
             const word = words[Math.floor(Math.random()*words.length)];
             const spyIndex = Math.floor(Math.random()*lobby.players.length);
