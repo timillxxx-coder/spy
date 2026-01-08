@@ -11,19 +11,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const lobbies = {};
 
-function generateLobbyId() {
+function generateLobbyId(){
     return Math.random().toString(36).substring(2,8).toUpperCase();
 }
 
 function broadcastLobbyUpdate(lobbyId){
     const lobby = lobbies[lobbyId];
     if(!lobby) return;
-    const data = {
-        type: 'lobby_update',
-        players: lobby.players.map(p=>p.name),
-        host: lobby.host,
-        lobbyId
-    };
+    const data = { type:'lobby_update', players: lobby.players.map(p=>p.name), host: lobby.host, lobbyId };
     lobby.players.forEach(p=>p.ws.send(JSON.stringify(data)));
 }
 
@@ -42,10 +37,9 @@ wss.on('connection', ws=>{
 
         if(data.type==='create_lobby'){
             const lobbyId = generateLobbyId();
-            lobbies[lobbyId] = { host: data.name, players:[{name:data.name, ws}], started:false, spy:null };
+            lobbies[lobbyId] = { host:data.name, players:[{name:data.name, ws}], started:false, spy:null };
             currentLobby = lobbyId;
             playerName = data.name;
-
             ws.send(JSON.stringify({ type:'lobby_created', lobbyId }));
             broadcastLobbyUpdate(lobbyId);
         }
@@ -54,21 +48,19 @@ wss.on('connection', ws=>{
             const lobby = lobbies[data.lobbyId];
             if(!lobby){ ws.send(JSON.stringify({type:'error', message:'Лобби не найдено'})); return; }
             if(lobby.started){ ws.send(JSON.stringify({type:'error', message:'Игра уже началась'})); return; }
-
             lobby.players.push({name:data.name, ws});
             currentLobby = data.lobbyId;
             playerName = data.name;
-
             ws.send(JSON.stringify({ type:'joined_lobby', lobbyId:data.lobbyId, host:lobby.host }));
             broadcastLobbyUpdate(currentLobby);
         }
 
         if(data.type==='start_game' || data.type==='restart_game'){
             const lobby = lobbies[data.lobbyId];
-            if(!lobby || lobby.host !== data.name) return;
+            if(!lobby || lobby.host!==data.name) return;
 
             lobby.started = true;
-            const words = ['Бумага','Карандаш','Компьютер','Мяч','Книга'];
+            const words=['Бумага','Карандаш','Компьютер','Мяч','Книга'];
             const word = words[Math.floor(Math.random()*words.length)];
             const spyIndex = Math.floor(Math.random()*lobby.players.length);
             lobby.spy = lobby.players[spyIndex].name;
@@ -85,22 +77,22 @@ wss.on('connection', ws=>{
                 }));
             });
 
-            lobby.votes = {};
-            lobby.votedCount = 0;
+            lobby.votes={};
+            lobby.votedCount=0;
         }
 
         if(data.type==='vote'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby) return;
             if(!lobby.votes[data.name]){
-                lobby.votes[data.name] = data.target;
+                lobby.votes[data.name]=data.target;
                 lobby.votedCount++;
             }
 
             broadcastVoteProgress(lobby);
 
             if(lobby.votedCount>=lobby.players.length){
-                const voteCounts = {};
+                const voteCounts={};
                 Object.values(lobby.votes).forEach(t=>voteCounts[t]=(voteCounts[t]||0)+1);
                 let max=0, eliminated=null;
                 for(const [p,count] of Object.entries(voteCounts)){
@@ -117,9 +109,9 @@ wss.on('connection', ws=>{
         if(currentLobby && lobbies[currentLobby]){
             const lobby = lobbies[currentLobby];
             lobby.players = lobby.players.filter(p=>p.ws!==ws);
-            if(lobby.players.length===0){ delete lobbies[currentLobby]; }
+            if(lobby.players.length===0) delete lobbies[currentLobby];
             else{
-                if(lobby.host===playerName){ lobby.host=lobby.players[0].name; }
+                if(lobby.host===playerName) lobby.host=lobby.players[0].name;
                 broadcastLobbyUpdate(currentLobby);
             }
         }
