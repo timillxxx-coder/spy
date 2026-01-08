@@ -70,24 +70,27 @@ wss.on('connection', ws => {
             if(!lobby || lobby.host !== data.name) return;
             if(lobby.started) return;
             lobby.started = true;
-
+        
+            // Случайное слово игры
+            const words = ['Бумага','Карандаш','Компьютер','Мяч','Книга'];
+            const word = words[Math.floor(Math.random()*words.length)];
+        
             const spyIndex = Math.floor(Math.random() * lobby.players.length);
-            const word = 'Бумага';
             lobby.spy = lobby.players[spyIndex].name;
-
+        
             lobby.players.forEach((p,i)=>{
                 const role = i === spyIndex ? 'spy' : 'word';
                 p.role = role;
                 p.ws.send(JSON.stringify({
                     type:'game_started',
                     role,
-                    word,
+                    word: role==='word'?word:null, // только не-шпионам
                     totalPlayers: lobby.players.length,
-                    players: lobby.players.map(pl => pl.name) // список всех игроков
+                    players: lobby.players.map(pl=>pl.name)
                 }));
             });
-
-            lobby.votes = {}; 
+        
+            lobby.votes = {};
             lobby.votedCount = 0;
         }
 
