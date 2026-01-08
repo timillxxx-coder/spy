@@ -38,6 +38,7 @@ function loginUser(){
             lobby.classList.remove('hidden');
             lobbyIdSpan.textContent = lobbyId;
             creatorSpan.textContent = username;
+            startBtn.textContent = "Начать игру";
             startBtn.classList.remove('hidden');
             updateLobbyPlayers([username]);
         }
@@ -48,6 +49,7 @@ function loginUser(){
             lobbyIdSpan.textContent = d.lobbyId;
             creatorSpan.textContent = d.host;
             startBtn.style.display = d.host===username?'block':'none';
+            startBtn.textContent = "Начать игру";
             updateLobbyPlayers(d.players);
         }
 
@@ -72,28 +74,28 @@ function loginUser(){
             progressText.textContent = `Проголосовали ${d.voted} из ${d.total}`;
         }
 
-    // В конце ws.onmessage
-    if(d.type==='game_ended'){
-        resultText.textContent = `🏁 Игра окончена\nШпион: ${d.spy}\nВыбывший: ${d.eliminated}`;
-        progressText.textContent = '';
-    
-        // Показываем кнопку "Начать игру заново" у создателя
-        if(username === creatorSpan.textContent){
-            startBtn.textContent = "Начать игру заново";
-            startBtn.classList.remove('hidden'); // <-- ВАЖНО! убираем hidden
-            startBtn.style.display = 'block'; // <-- точно показываем
+        if(d.type==='game_ended'){
+            resultText.textContent = `🏁 Игра окончена\nШпион: ${d.spy}\nВыбывший: ${d.eliminated}`;
+            progressText.textContent = '';
+
+            if(username === creatorSpan.textContent){
+                startBtn.textContent = "Начать игру заново";
+                startBtn.classList.remove('hidden');
+                startBtn.style.display = 'block';
+            }
         }
-    }
-    
-    // Обработчик кнопки
+
+        if(d.type==='error') alert(d.message);
+    };
+
     startBtn.onclick = ()=>{
         if(startBtn.textContent==="Начать игру заново"){
             ws.send(JSON.stringify({ type:'restart_game', lobbyId, name:username }));
         } else {
             ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
         }
-        startBtn.textContent = "Начать игру"; // после нажатия сбрасываем текст
-        startBtn.classList.add('hidden'); // скрываем кнопку во время игры
+        startBtn.textContent = "Начать игру";
+        startBtn.classList.add('hidden');
     };
 }
 
