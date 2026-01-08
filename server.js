@@ -9,7 +9,7 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const lobbies = {}; // { lobbyId: { host: 'nick', players: [{name, ws, role}], started: false, spy: 'nick' } }
+const lobbies = {}; // { lobbyId: { host, players:[{name,ws,role}], started, spy, votes, votedCount } }
 
 function generateLobbyId() {
     return Math.random().toString(36).substring(2,8).toUpperCase();
@@ -21,7 +21,8 @@ function broadcastLobbyUpdate(lobbyId){
     const data = {
         type: 'lobby_update',
         players: lobby.players.map(p=>p.name),
-        host: lobby.host
+        host: lobby.host,
+        lobbyId
     };
     lobby.players.forEach(p=>p.ws.send(JSON.stringify(data)));
 }
@@ -32,15 +33,14 @@ function broadcastVoteProgress(lobby){
     });
 }
 
-wss.on('connection', ws => {
+wss.on('connection', ws=>{
     let currentLobby = null;
     let playerName = null;
 
-    ws.on('message', msg => {
+    ws.on('message', msg=>{
         const data = JSON.parse(msg);
 
-        // ===== СОЗДАНИЕ ЛОББИ =====
-        if(data.type === 'create_lobby'){
+        if(data.type==='create_lobby'){
             const lobbyId = generateLobbyId();
             lobbies[lobbyId] = { host: data.name, players:[{name:data.name, ws}], started:false, spy:null };
             currentLobby = lobbyId;
@@ -50,55 +50,50 @@ wss.on('connection', ws => {
             broadcastLobbyUpdate(lobbyId);
         }
 
-        // ===== ПРИСОЕДИНЕНИЕ =====
-        if(data.type === 'join_lobby'){
+        if(data.type==='join_lobby'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby){ ws.send(JSON.stringify({type:'error', message:'Лобби не найдено'})); return; }
             if(lobby.started){ ws.send(JSON.stringify({type:'error', message:'Игра уже началась'})); return; }
-            
+
             lobby.players.push({name:data.name, ws});
             currentLobby = data.lobbyId;
             playerName = data.name;
 
-            ws.send(JSON.stringify({ type:'joined_lobby', lobbyId:data.lobbyId, creator:lobby.host }));
+            ws.send(JSON.stringify({ type:'joined_lobby', lobbyId:data.lobbyId, host:lobby.host }));
             broadcastLobbyUpdate(currentLobby);
         }
 
-        // ===== СТАРТ ИГРЫ =====
-        if(data.type === 'start_game'){
+        if(data.type==='start_game'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby || lobby.host !== data.name) return;
             if(lobby.started) return;
             lobby.started = true;
-        
-            // Случайное слово игры
+
+            // Рандомное слово и шпион
             const words = ['Бумага','Карандаш','Компьютер','Мяч','Книга'];
             const word = words[Math.floor(Math.random()*words.length)];
-        
-            const spyIndex = Math.floor(Math.random() * lobby.players.length);
+            const spyIndex = Math.floor(Math.random()*lobby.players.length);
             lobby.spy = lobby.players[spyIndex].name;
-        
+
             lobby.players.forEach((p,i)=>{
-                const role = i === spyIndex ? 'spy' : 'word';
+                const role = i===spyIndex?'spy':'word';
                 p.role = role;
                 p.ws.send(JSON.stringify({
                     type:'game_started',
                     role,
-                    word: role==='word'?word:null, // только не-шпионам
+                    word: role==='word'?word:null,
                     totalPlayers: lobby.players.length,
                     players: lobby.players.map(pl=>pl.name)
                 }));
             });
-        
+
             lobby.votes = {};
             lobby.votedCount = 0;
         }
 
-        // ===== ГОЛОСОВАНИЕ =====
-        if(data.type === 'vote'){
+        if(data.type==='vote'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby) return;
-
             if(!lobby.votes[data.name]){
                 lobby.votes[data.name] = data.target;
                 lobby.votedCount++;
@@ -106,45 +101,27 @@ wss.on('connection', ws => {
 
             broadcastVoteProgress(lobby);
 
-            if(lobby.votedCount >= lobby.players.length){
-                // Подсчёт голосов
+            if(lobby.votedCount>=lobby.players.length){
                 const voteCounts = {};
-                Object.values(lobby.votes).forEach(target => {
-                    voteCounts[target] = (voteCounts[target] || 0) + 1;
-                });
-
-                // Игрок с максимальным голосами
-                let maxVotes = 0;
-                let eliminated = null;
-                for(const [player, count] of Object.entries(voteCounts)){
-                    if(count > maxVotes){
-                        maxVotes = count;
-                        eliminated = player;
-                    }
+                Object.values(lobby.votes).forEach(t=>voteCounts[t]=(voteCounts[t]||0)+1);
+                let max=0, eliminated=null;
+                for(const [p,count] of Object.entries(voteCounts)){
+                    if(count>max){ max=count; eliminated=p; }
                 }
-
-                // Отправляем результат всем
                 lobby.players.forEach(p=>{
-                    p.ws.send(JSON.stringify({
-                        type:'game_ended',
-                        spy: lobby.spy,
-                        eliminated
-                    }));
+                    p.ws.send(JSON.stringify({ type:'game_ended', spy:lobby.spy, eliminated }));
                 });
             }
         }
     });
 
-    ws.on('close', () => {
+    ws.on('close', ()=>{
         if(currentLobby && lobbies[currentLobby]){
             const lobby = lobbies[currentLobby];
-            lobby.players = lobby.players.filter(p=>p.ws !== ws);
-            if(lobby.players.length === 0){
-                delete lobbies[currentLobby];
-            } else {
-                if(lobby.host === playerName){
-                    lobby.host = lobby.players[0].name;
-                }
+            lobby.players = lobby.players.filter(p=>p.ws!==ws);
+            if(lobby.players.length===0){ delete lobbies[currentLobby]; }
+            else{
+                if(lobby.host===playerName){ lobby.host=lobby.players[0].name; }
                 broadcastLobbyUpdate(currentLobby);
             }
         }
