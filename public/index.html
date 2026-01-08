@@ -122,7 +122,6 @@ pre {
 
 /* ===== СКРЫТЫЕ ЭЛЕМЕНТЫ ===== */
 .hidden { display: none; }
-
 </style>
 </head>
 
@@ -147,7 +146,21 @@ pre {
     <h1>Лобби</h1>
     <p>🆔 <b id="lobbyId"></b></p>
     <p>👑 Создатель: <b id="creator"></b></p>
+
     <ul id="playersList" class="players"></ul>
+
+    <div id="lobbySettings" class="hidden">
+        <h3>Настройки лобби</h3>
+        <label>Тематика слов:</label>
+        <select id="themeSelect">
+            <option value="travel">Путешествия</option>
+            <option value="games">Игры</option>
+            <option value="programming">Программирование</option>
+        </select>
+        <button id="saveSettingsBtn">Сохранить настройки</button>
+    </div>
+
+    <button id="settingsBtn" style="display:none;">Настройки лобби</button>
     <button id="startBtn" style="display:none;">Начать игру</button>
 </div>
 
