@@ -9,29 +9,33 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const lobbies = {}; // { lobbyId: { host: 'nick', players: [{name, ws}], started: false } }
+const lobbies = {}; // { lobbyId: { host: 'nick', players: [{name, ws, role}], started: false, spy: 'nick' } }
 
+// ===== ЛОББИ ID =====
 function generateLobbyId() {
     return Math.random().toString(36).substring(2,8).toUpperCase();
 }
 
-function broadcastLobbyUpdate(lobbyId) {
+// ===== ЛОББИ UPDATE =====
+function broadcastLobbyUpdate(lobbyId){
     const lobby = lobbies[lobbyId];
     if(!lobby) return;
     const data = {
         type: 'lobby_update',
-        players: lobby.players.map(p => p.name),
+        players: lobby.players.map(p=>p.name),
         host: lobby.host
     };
-    lobby.players.forEach(p => p.ws.send(JSON.stringify(data)));
+    lobby.players.forEach(p=>p.ws.send(JSON.stringify(data)));
 }
 
+// ===== ПРОГРЕСС ГОЛОСОВАНИЯ =====
 function broadcastVoteProgress(lobby){
     lobby.players.forEach(p=>{
         p.ws.send(JSON.stringify({ type:'vote_update', voted: lobby.votedCount, total: lobby.players.length }));
     });
 }
 
+// ===== ПОДКЛЮЧЕНИЕ WS =====
 wss.on('connection', ws => {
     let currentLobby = null;
     let playerName = null;
@@ -42,7 +46,7 @@ wss.on('connection', ws => {
         // ===== СОЗДАНИЕ ЛОББИ =====
         if(data.type === 'create_lobby'){
             const lobbyId = generateLobbyId();
-            lobbies[lobbyId] = { host: data.name, players:[{name:data.name, ws}], started:false };
+            lobbies[lobbyId] = { host: data.name, players:[{name:data.name, ws}], started:false, spy:null };
             currentLobby = lobbyId;
             playerName = data.name;
 
@@ -74,8 +78,12 @@ wss.on('connection', ws => {
             const spyIndex = Math.floor(Math.random() * lobby.players.length);
             const word = 'Бумага';
 
+            // Сохраняем имя шпиона
+            lobby.spy = lobby.players[spyIndex].name;
+
             lobby.players.forEach((p,i)=>{
                 const role = i === spyIndex ? 'spy' : 'word';
+                p.role = role;
                 p.ws.send(JSON.stringify({
                     type:'game_started',
                     role,
@@ -84,11 +92,11 @@ wss.on('connection', ws => {
                 }));
             });
 
-            lobby.votes = {};
+            lobby.votes = {};       // { voter: target }
             lobby.votedCount = 0;
         }
 
-        // ===== ГОЛОС =====
+        // ===== ГОЛОСОВАНИЕ =====
         if(data.type === 'vote'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby) return;
@@ -100,17 +108,29 @@ wss.on('connection', ws => {
 
             broadcastVoteProgress(lobby);
 
+            // КОНЕЦ ГОЛОСОВАНИЯ
             if(lobby.votedCount >= lobby.players.length){
-                // шпион — тот, кто был spy
-                const spyPlayer = lobby.players.find(p=>{
-                    return p.ws.readyState === WebSocket.OPEN && p.role === 'spy';
+                // Подсчёт голосов
+                const voteCounts = {};
+                Object.values(lobby.votes).forEach(target => {
+                    voteCounts[target] = (voteCounts[target] || 0) + 1;
                 });
-                const eliminated = Object.values(lobby.votes).join(', ');
 
+                // Игрок с максимальным количеством голосов
+                let maxVotes = 0;
+                let eliminated = null;
+                for(const [player, count] of Object.entries(voteCounts)){
+                    if(count > maxVotes){
+                        maxVotes = count;
+                        eliminated = player;
+                    }
+                }
+
+                // Отправляем результат всем
                 lobby.players.forEach(p=>{
                     p.ws.send(JSON.stringify({
                         type:'game_ended',
-                        spy: lobby.players.find((pl,i)=>i === Object.keys(lobby.votes).length-1).name,
+                        spy: lobby.spy,
                         eliminated
                     }));
                 });
@@ -118,6 +138,7 @@ wss.on('connection', ws => {
         }
     });
 
+    // ===== ОТКЛЮЧЕНИЕ ИГРОКА =====
     ws.on('close', () => {
         if(currentLobby && lobbies[currentLobby]){
             const lobby = lobbies[currentLobby];
