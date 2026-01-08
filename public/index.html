@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Spy Online</title>
 <style>
+/* ===== ОБЩЕЕ ===== */
 * {
     box-sizing: border-box;
     font-family: 'Segoe UI', Arial, sans-serif;
@@ -19,6 +20,7 @@ body {
     align-items: center;
 }
 
+/* ===== КАРТОЧКИ ===== */
 .card {
     width: 420px;
     background: rgba(17, 24, 39, 0.95);
@@ -40,6 +42,7 @@ h1 {
     letter-spacing: 1px;
 }
 
+/* ===== INPUT ===== */
 input {
     width: 100%;
     padding: 12px 14px;
@@ -52,6 +55,7 @@ input {
     font-size: 15px;
 }
 
+/* ===== BUTTON ===== */
 button {
     width: 100%;
     padding: 12px;
@@ -75,6 +79,7 @@ button.secondary {
     background: linear-gradient(135deg, #374151, #1f2937);
 }
 
+/* ===== СПИСОК ИГРОКОВ ===== */
 .players {
     margin-top: 15px;
 }
@@ -87,6 +92,7 @@ button.secondary {
     margin-bottom: 6px;
 }
 
+/* ===== РОЛЬ ===== */
 .role {
     font-size: 28px;
     font-weight: 800;
@@ -97,12 +103,14 @@ button.secondary {
 .spy { color: #ef4444; }
 .word { color: #22c55e; }
 
+/* ===== ПРОГРЕСС ===== */
 .progress {
     text-align: center;
     opacity: 0.8;
     margin-top: 10px;
 }
 
+/* ===== РЕЗУЛЬТАТ ===== */
 pre {
     background: #020617;
     border-radius: 10px;
@@ -111,7 +119,9 @@ pre {
     margin-top: 15px;
 }
 
+/* ===== СКРЫТЫЕ ЭЛЕМЕНТЫ ===== */
 .hidden { display: none; }
+
 </style>
 </head>
 <body>
@@ -143,10 +153,12 @@ pre {
 <div class="card hidden" id="game">
     <h1>Ваша роль</h1>
     <div class="role" id="role"></div>
+
     <div class="players">
         <h3>Игроки</h3>
-        <ul id="gamePlayers"></ul>
+        <ul id="gamePlayers" class="players"></ul>
     </div>
+
     <button id="voteBtn">Голосовать</button>
     <div class="progress" id="progress"></div>
     <pre id="result"></pre>
