@@ -1,106 +1,137 @@
-const express = require('express');
-const http = require('http');
 const WebSocket = require('ws');
-const path = require('path');
 
-const app = express();
+const wss = new WebSocket.Server({ port: 8080 });
 
-// Статика
-app.use(express.static(path.join(__dirname, 'public')));
+let lobbies = {}; // { lobbyId: { host: 'nick', players: [{name, ws}], started: false } }
 
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
-
-const WORDS = ['бумага','стол','машина','телефон','окно'];
-let lobbies = {};
-
-// ===== ВСПОМОГАТЕЛЬНЫЕ =====
-function send(ws, type, data = {}) { ws.send(JSON.stringify({ type, ...data })); }
-function broadcast(lobbyId, type, data = {}) {
-  const lobby = lobbies[lobbyId];
-  if (!lobby) return;
-  lobby.players.forEach(p => send(p.ws, type, data));
+function generateLobbyId() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
-function generateLobbyId() { return Math.floor(100000 + Math.random()*900000).toString(); }
 
-// ===== WEBSOCKET =====
 wss.on('connection', ws => {
-  ws.on('message', msg => {
-    let data;
-    try { data = JSON.parse(msg); } catch { return; }
-    const { type } = data;
+    let currentLobby = null;
+    let playerName = null;
 
-    // СОЗДАНИЕ ЛОББИ
-    if (type === 'create_lobby') {
-      const lobbyId = generateLobbyId();
-      lobbies[lobbyId] = {
-        host: ws,
-        players: [{ ws, name: data.name, role:null, vote:null }],
-        started: false,
-        word:null,
-        spyIndex:null
-      };
-      ws.lobbyId = lobbyId;
-      send(ws,'lobby_created',{ lobbyId, players:[data.name], host:true });
-    }
+    ws.on('message', message => {
+        const data = JSON.parse(message);
 
-    // ВХОД В ЛОББИ
-    if (type === 'join_lobby') {
-      const lobby = lobbies[data.lobbyId];
-      if (!lobby || lobby.started) { send(ws,'error',{message:'Лобби не найдено или игра началась'}); return; }
-      lobby.players.push({ ws, name:data.name, role:null, vote:null });
-      ws.lobbyId = data.lobbyId;
-      broadcast(data.lobbyId,'lobby_update',{ players:lobby.players.map(p=>p.name) });
-    }
+        // ===== СОЗДАНИЕ ЛОББИ =====
+        if(data.type === 'create_lobby') {
+            const lobbyId = generateLobbyId();
+            lobbies[lobbyId] = { host: data.name, players: [{name:data.name, ws}], started:false };
+            currentLobby = lobbyId;
+            playerName = data.name;
 
-    // СТАРТ ИГРЫ
-    if (type === 'start_game') {
-      const lobby = lobbies[ws.lobbyId];
-      if (!lobby || lobby.host!==ws) return;
-      lobby.started = true;
-      lobby.word = WORDS[Math.floor(Math.random()*WORDS.length)];
-      lobby.spyIndex = Math.floor(Math.random()*lobby.players.length);
-      lobby.players.forEach((p,i)=>{
-        p.role = i===lobby.spyIndex?'spy':'civil';
-        p.vote = null;
-        send(p.ws,'game_started',{
-          role: p.role,
-          word: p.role==='spy'?null:lobby.word
-        });
-      });
-    }
+            ws.send(JSON.stringify({ type:'lobby_created', lobbyId }));
 
-    // ГОЛОСОВАНИЕ
-    if (type==='vote') {
-      const lobby = lobbies[ws.lobbyId];
-      if (!lobby || !lobby.started) return;
-      const voter = lobby.players.find(p=>p.ws===ws);
-      if (!voter || voter.vote!==null) return;
-      voter.vote = data.target;
-      const votesCount = lobby.players.filter(p=>p.vote!==null).length;
-      broadcast(ws.lobbyId,'vote_update',{ voted:votesCount, total:lobby.players.length });
+            broadcastLobbyUpdate(lobbyId);
+        }
 
-      if (votesCount===lobby.players.length) {
-        let votes={};
-        lobby.players.forEach(p=>{ votes[p.vote]=(votes[p.vote]||0)+1; });
-        let eliminated = Object.keys(votes).reduce((a,b)=>votes[a]>votes[b]?a:b);
-        broadcast(ws.lobbyId,'game_ended',{ eliminated, spy:lobby.players[lobby.spyIndex].name });
-        delete lobbies[ws.lobbyId];
-      }
-    }
+        // ===== ПРИСОЕДИНЕНИЕ К ЛОББИ =====
+        if(data.type === 'join_lobby') {
+            const lobby = lobbies[data.lobbyId];
+            if(!lobby) {
+                ws.send(JSON.stringify({ type:'error', message:'Лобби не найдено' }));
+                return;
+            }
+            if(lobby.started){
+                ws.send(JSON.stringify({ type:'error', message:'Игра уже началась' }));
+                return;
+            }
+            lobby.players.push({name:data.name, ws});
+            currentLobby = data.lobbyId;
+            playerName = data.name;
 
-  });
+            ws.send(JSON.stringify({ type:'joined_lobby', lobbyId:data.lobbyId, creator:lobby.host }));
 
-  ws.on('close',()=>{
-    const lobbyId = ws.lobbyId;
-    if (!lobbyId || !lobbies[lobbyId]) return;
-    const lobby = lobbies[lobbyId];
-    lobby.players = lobby.players.filter(p=>p.ws!==ws);
-    if(lobby.players.length===0) delete lobbies[lobbyId];
-    else broadcast(lobbyId,'lobby_update',{ players:lobby.players.map(p=>p.name) });
-  });
+            broadcastLobbyUpdate(currentLobby);
+        }
+
+        // ===== СТАРТ ИГРЫ =====
+        if(data.type === 'start_game') {
+            const lobby = lobbies[data.lobbyId];
+            if(!lobby || lobby.host !== data.name) return;
+            if(lobby.started) return;
+            lobby.started = true;
+
+            // Рандомный шпион
+            const spyIndex = Math.floor(Math.random() * lobby.players.length);
+            const word = 'Бумага';
+
+            lobby.players.forEach((p,i) => {
+                const role = (i === spyIndex ? 'spy' : 'word');
+                p.ws.send(JSON.stringify({
+                    type:'game_started',
+                    role,
+                    word,
+                    totalPlayers: lobby.players.length
+                }));
+            });
+
+            // Для голосования
+            lobby.votes = {};
+            lobby.votedCount = 0;
+        }
+
+        // ===== ГОЛОСОВАНИЕ =====
+        if(data.type === 'vote') {
+            const lobby = lobbies[data.lobbyId];
+            if(!lobby) return;
+
+            if(!lobby.votes[data.name]){
+                lobby.votes[data.name] = data.target;
+                lobby.votedCount++;
+            }
+
+            // Рассылаем прогресс
+            broadcastVoteProgress(lobby);
+
+            // Проверка конца голосования
+            if(lobby.votedCount >= lobby.players.length){
+                const spyPlayer = lobby.players.find(p=>p.name === Object.keys(lobby.votes).find(n=>n===Object.keys(lobby.votes).find(v=>v===n)))?.name;
+                const eliminated = Object.values(lobby.votes).join(', ');
+
+                lobby.players.forEach(p=>{
+                    p.ws.send(JSON.stringify({
+                        type:'game_ended',
+                        spy: lobby.players.find((pl,i)=>i === Object.keys(lobby.votes).length-1).name,
+                        eliminated
+                    }));
+                });
+            }
+        }
+    });
+
+    ws.on('close', () => {
+        if(currentLobby && lobbies[currentLobby]){
+            const lobby = lobbies[currentLobby];
+            lobby.players = lobby.players.filter(p=>p.ws !== ws);
+            if(lobby.players.length === 0){
+                delete lobbies[currentLobby];
+            } else {
+                if(lobby.host === playerName){
+                    lobby.host = lobby.players[0].name; // передаём хозяина следующему
+                }
+                broadcastLobbyUpdate(currentLobby);
+            }
+        }
+    });
 });
 
-// ===== ПОРТ =====
-const PORT = process.env.PORT || 8080;
-server.listen(PORT,()=>console.log('Server running on port',PORT));
+// ===== ФУНКЦИИ =====
+function broadcastLobbyUpdate(lobbyId){
+    const lobby = lobbies[lobbyId];
+    if(!lobby) return;
+    const data = {
+        type:'lobby_update',
+        players: lobby.players.map(p=>p.name),
+        host: lobby.host
+    };
+    lobby.players.forEach(p=>p.ws.send(JSON.stringify(data)));
+}
+
+function broadcastVoteProgress(lobby){
+    lobby.players.forEach(p=>{
+        p.ws.send(JSON.stringify({ type:'vote_update', voted: lobby.votedCount, total: lobby.players.length }));
+    });
+}
