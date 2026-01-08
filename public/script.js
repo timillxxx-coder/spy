@@ -39,14 +39,15 @@ function loginUser(){
             lobbyIdSpan.textContent = lobbyId;
             creatorSpan.textContent = username;
             startBtn.textContent = "Начать игру";
-            startBtn.classList.remove('hidden');
+            startBtn.style.display = 'block';
             updateLobbyPlayers([username]);
         }
 
         if(d.type==='joined_lobby' || d.type==='lobby_update'){
+            lobbyId = d.lobbyId;
             lobbyMenu.classList.add('hidden');
             lobby.classList.remove('hidden');
-            lobbyIdSpan.textContent = d.lobbyId;
+            lobbyIdSpan.textContent = lobbyId;
             creatorSpan.textContent = d.host;
             startBtn.style.display = d.host===username?'block':'none';
             startBtn.textContent = "Начать игру";
@@ -80,7 +81,6 @@ function loginUser(){
 
             if(username === creatorSpan.textContent){
                 startBtn.textContent = "Начать игру заново";
-                startBtn.classList.remove('hidden');
                 startBtn.style.display = 'block';
             }
         }
@@ -94,8 +94,7 @@ function loginUser(){
         } else {
             ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
         }
-        startBtn.textContent = "Начать игру";
-        startBtn.classList.add('hidden');
+        startBtn.style.display='none';
     };
 }
 
