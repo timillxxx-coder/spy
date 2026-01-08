@@ -67,15 +67,22 @@ wss.on('connection', ws=>{
 
             const themeWords = wordsByTheme[lobby.theme] || wordsByTheme['travel'];
             const spyIndex = Math.floor(Math.random()*lobby.players.length);
+            const chosenWord = themeWords[Math.floor(Math.random()*themeWords.length)];
 
             lobby.players.forEach((p,i)=>{
-                p.role = i===spyIndex ? 'spy' : 'word';
-                p.word = p.role==='word' ? themeWords[Math.floor(Math.random()*themeWords.length)] : null;
-                p.voted = false;
+                if(i === spyIndex){
+                    p.role='spy';
+                    p.word=null;
+                } else {
+                    p.role='word';
+                    p.word=chosenWord;
+                }
+                p.voted=false;
+                p.voteTarget=null;
             });
 
-            lobby.votedCount = 0;
-            lobby.started = true;
+            lobby.votedCount=0;
+            lobby.started=true;
 
             lobby.players.forEach(p=>{
                 p.ws.send(JSON.stringify({
