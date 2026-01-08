@@ -21,7 +21,8 @@ function loginUser() {
     username = document.getElementById('name').value.trim();
     if(!username) return alert('Введите ник');
 
-    ws = new WebSocket(location.protocol==='https:' ? `wss://${location.host}` : `ws://${location.host}`);
+    const protocol = location.protocol==='https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${protocol}://${location.host}`);
 
     ws.onopen = () => {
         const create = confirm('Создать лобби?');
@@ -36,7 +37,6 @@ function loginUser() {
     ws.onmessage = e => {
         const d = JSON.parse(e.data);
 
-        // Лобби создано
         if(d.type === 'lobby_created'){
             lobbyId = d.lobbyId;
             login.classList.add('hidden');
@@ -47,33 +47,27 @@ function loginUser() {
             startBtn.classList.remove('hidden');
         }
 
-        // Лобби обновилось
         if(d.type === 'lobby_update'){
             lobby.classList.remove('hidden');
             updatePlayers(d.players);
-
-            // Кнопка старт только у хоста
             if(d.host === username) startBtn.classList.remove('hidden');
             else startBtn.classList.add('hidden');
         }
 
-        // Игра стартует
         if(d.type === 'game_started'){
             lobby.classList.add('hidden');
             game.classList.remove('hidden');
 
-            roleText.className = 'role ' + (d.role === 'spy' ? 'spy' : 'word');
-            roleText.textContent = d.role === 'spy' ? '😈 ТЫ ШПИОН' : `📄 ${d.word}`;
+            roleText.className = 'role ' + (d.role==='spy'?'spy':'word');
+            roleText.textContent = d.role==='spy'?'😈 ТЫ ШПИОН':`📄 ${d.word}`;
             progressText.textContent = `Проголосовали 0 из ${d.totalPlayers}`;
             resultText.textContent = '';
         }
 
-        // Обновление голосования
         if(d.type === 'vote_update'){
             progressText.textContent = `Проголосовали ${d.voted} из ${d.total}`;
         }
 
-        // Конец игры
         if(d.type === 'game_ended'){
             resultText.textContent =
 `🏁 Игра окончена
