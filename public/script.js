@@ -1,6 +1,5 @@
 let ws, username, lobbyId;
 
-// DOM
 const login = document.getElementById('login');
 const lobbyMenu = document.getElementById('lobbyMenu');
 const lobby = document.getElementById('lobby');
