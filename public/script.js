@@ -12,12 +12,12 @@ const startBtn = document.getElementById('startBtn');
 const roleText = document.getElementById('role');
 const progressText = document.getElementById('progress');
 const resultText = document.getElementById('result');
+const gamePlayersList = document.getElementById('gamePlayers');
 
 document.getElementById('loginBtn').onclick = loginUser;
 document.getElementById('voteBtn').onclick = vote;
 
-// ===== ВХОД =====
-function loginUser() {
+function loginUser(){
     username = document.getElementById('name').value.trim();
     if(!username) return alert('Введите ник');
 
@@ -27,7 +27,7 @@ function loginUser() {
     ws.onopen = () => {
         const create = confirm('Создать лобби?');
         if(create) ws.send(JSON.stringify({ type:'create_lobby', name:username }));
-        else {
+        else{
             lobbyId = prompt('Введите ID лобби');
             if(!lobbyId) return;
             ws.send(JSON.stringify({ type:'join_lobby', name:username, lobbyId }));
@@ -37,7 +37,7 @@ function loginUser() {
     ws.onmessage = e => {
         const d = JSON.parse(e.data);
 
-        if(d.type === 'lobby_created'){
+        if(d.type==='lobby_created'){
             lobbyId = d.lobbyId;
             login.classList.add('hidden');
             lobby.classList.remove('hidden');
@@ -47,14 +47,14 @@ function loginUser() {
             startBtn.classList.remove('hidden');
         }
 
-        if(d.type === 'lobby_update'){
+        if(d.type==='joined_lobby' || d.type==='lobby_update'){
             lobby.classList.remove('hidden');
             updatePlayers(d.players);
-            if(d.host === username) startBtn.classList.remove('hidden');
+            if(d.host===username) startBtn.classList.remove('hidden');
             else startBtn.classList.add('hidden');
         }
 
-        if(d.type === 'game_started'){
+        if(d.type==='game_started'){
             lobby.classList.add('hidden');
             game.classList.remove('hidden');
 
@@ -62,13 +62,21 @@ function loginUser() {
             roleText.textContent = d.role==='spy'?'😈 ТЫ ШПИОН':`📄 ${d.word}`;
             progressText.textContent = `Проголосовали 0 из ${d.totalPlayers}`;
             resultText.textContent = '';
+
+            // список игроков во время игры
+            gamePlayersList.innerHTML='';
+            d.players.forEach(p=>{
+                const li = document.createElement('li');
+                li.textContent = p;
+                gamePlayersList.appendChild(li);
+            });
         }
 
-        if(d.type === 'vote_update'){
+        if(d.type==='vote_update'){
             progressText.textContent = `Проголосовали ${d.voted} из ${d.total}`;
         }
 
-        if(d.type === 'game_ended'){
+        if(d.type==='game_ended'){
             resultText.textContent =
 `🏁 Игра окончена
 Шпион: ${d.spy}
@@ -79,19 +87,17 @@ function loginUser() {
         if(d.type==='error') alert(d.message);
     };
 
-    startBtn.onclick = () => {
+    startBtn.onclick = ()=>{
         if(!lobbyId) return;
         ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
     };
 }
 
-// ===== ГОЛОС =====
 function vote(){
     const v = prompt('Против кого?');
     if(v) ws.send(JSON.stringify({ type:'vote', lobbyId, name:username, target:v }));
 }
 
-// ===== СПИСОК ИГРОКОВ =====
 function updatePlayers(players){
     playersList.innerHTML='';
     players.forEach(p=>{
