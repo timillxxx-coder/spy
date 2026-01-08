@@ -79,6 +79,7 @@ function loginUser(){
             resultText.textContent = `🏁 Игра окончена\nШпион: ${d.spy}\nВыбывший: ${d.eliminated}`;
             progressText.textContent = '';
 
+            // Показываем кнопку "Начать игру заново"
             if(username === creatorSpan.textContent){
                 startBtn.textContent = "Начать игру заново";
                 startBtn.style.display = 'block';
@@ -98,20 +99,16 @@ function loginUser(){
     };
 }
 
-function createLobby(){
-    ws.send(JSON.stringify({ type:'create_lobby', name:username }));
-}
-
-function joinLobby(){
-    const id = prompt('Введите ID лобби');
-    if(!id) return;
-    lobbyId = id;
+function createLobby(){ ws.send(JSON.stringify({ type:'create_lobby', name:username })); }
+function joinLobby(){ 
+    const id = prompt('Введите ID лобби'); 
+    if(!id) return; 
+    lobbyId = id; 
     ws.send(JSON.stringify({ type:'join_lobby', name:username, lobbyId }));
 }
-
-function vote(){
-    const v = prompt('Против кого?');
-    if(v) ws.send(JSON.stringify({ type:'vote', lobbyId, name:username, target:v }));
+function vote(){ 
+    const v = prompt('Против кого?'); 
+    if(v) ws.send(JSON.stringify({ type:'vote', lobbyId, name:username, target:v })); 
 }
 
 function updateLobbyPlayers(players){
