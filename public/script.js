@@ -37,7 +37,7 @@ function loginUser() {
         const d = JSON.parse(e.data);
 
         // Лобби создано
-        if(d.type === 'lobby_created') {
+        if(d.type === 'lobby_created'){
             lobbyId = d.lobbyId;
             login.classList.add('hidden');
             lobby.classList.remove('hidden');
@@ -48,16 +48,17 @@ function loginUser() {
         }
 
         // Лобби обновилось
-        if(d.type === 'lobby_update') {
+        if(d.type === 'lobby_update'){
             lobby.classList.remove('hidden');
             updatePlayers(d.players);
-            // Показываем кнопку Start только хосту
+
+            // Кнопка старт только у хоста
             if(d.host === username) startBtn.classList.remove('hidden');
             else startBtn.classList.add('hidden');
         }
 
         // Игра стартует
-        if(d.type === 'game_started') {
+        if(d.type === 'game_started'){
             lobby.classList.add('hidden');
             game.classList.remove('hidden');
 
@@ -68,12 +69,12 @@ function loginUser() {
         }
 
         // Обновление голосования
-        if(d.type === 'vote_update') {
+        if(d.type === 'vote_update'){
             progressText.textContent = `Проголосовали ${d.voted} из ${d.total}`;
         }
 
         // Конец игры
-        if(d.type === 'game_ended') {
+        if(d.type === 'game_ended'){
             resultText.textContent =
 `🏁 Игра окончена
 Шпион: ${d.spy}
@@ -81,10 +82,9 @@ function loginUser() {
             progressText.textContent = '';
         }
 
-        if(d.type === 'error') alert(d.message);
+        if(d.type==='error') alert(d.message);
     };
 
-    // Кнопка "Начать игру"
     startBtn.onclick = () => {
         if(!lobbyId) return;
         ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
@@ -92,15 +92,15 @@ function loginUser() {
 }
 
 // ===== ГОЛОС =====
-function vote() {
+function vote(){
     const v = prompt('Против кого?');
     if(v) ws.send(JSON.stringify({ type:'vote', lobbyId, name:username, target:v }));
 }
 
 // ===== СПИСОК ИГРОКОВ =====
-function updatePlayers(players) {
-    playersList.innerHTML = '';
-    players.forEach(p => {
+function updatePlayers(players){
+    playersList.innerHTML='';
+    players.forEach(p=>{
         const li = document.createElement('li');
         li.textContent = p;
         playersList.appendChild(li);
