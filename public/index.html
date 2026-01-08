@@ -5,129 +5,39 @@
 <title>Spy Online</title>
 
 <style>
-* {
-    box-sizing: border-box;
-    font-family: 'Segoe UI', Arial, sans-serif;
-}
-
-body {
-    margin: 0;
-    min-height: 100vh;
-    background: radial-gradient(circle at top, #1f2937, #020617);
-    color: #e5e7eb;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+* { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+body { margin:0; min-height:100vh; background: radial-gradient(circle at top, #1f2937, #020617); color: #e5e7eb; display:flex; justify-content:center; align-items:center; }
 
 /* ===== КАРТОЧКИ ===== */
-.card {
-    width: 420px;
-    background: rgba(17, 24, 39, 0.95);
-    border-radius: 16px;
-    padding: 30px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-    animation: fadeIn 0.4s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-h1 {
-    text-align: center;
-    margin-bottom: 20px;
-    font-weight: 700;
-    letter-spacing: 1px;
-}
+.card { width:420px; background: rgba(17,24,39,0.95); border-radius:16px; padding:30px; box-shadow:0 20px 40px rgba(0,0,0,0.6); animation:fadeIn 0.4s ease; }
+@keyframes fadeIn { from {opacity:0; transform:translateY(15px);} to {opacity:1; transform:translateY(0);} }
+h1 { text-align:center; margin-bottom:20px; font-weight:700; letter-spacing:1px; }
 
 /* ===== INPUT ===== */
-input {
-    width: 100%;
-    padding: 12px 14px;
-    margin-bottom: 15px;
-    border-radius: 10px;
-    border: none;
-    outline: none;
-    background: #020617;
-    color: #fff;
-    font-size: 15px;
-}
+input { width:100%; padding:12px 14px; margin-bottom:15px; border-radius:10px; border:none; outline:none; background:#020617; color:#fff; font-size:15px; }
 
 /* ===== BUTTON ===== */
-button {
-    width: 100%;
-    padding: 12px;
-    border-radius: 12px;
-    border: none;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 25px rgba(99,102,241,0.4);
-}
-
-.secondary {
-    background: linear-gradient(135deg, #374151, #1f2937);
-    margin-top: 10px;
-}
+button { width:100%; padding:12px; border-radius:12px; border:none; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white; font-size:15px; font-weight:600; cursor:pointer; transition:0.2s; }
+button:hover { transform:translateY(-2px); box-shadow:0 10px 25px rgba(99,102,241,0.4); }
+.secondary { background:linear-gradient(135deg,#374151,#1f2937); margin-top:10px; }
 
 /* ===== PLAYERS ===== */
-.players {
-    margin-top: 15px;
-}
-
-.players li {
-    list-style: none;
-    background: #020617;
-    padding: 8px 12px;
-    border-radius: 8px;
-    margin-bottom: 6px;
-}
+.players { margin-top:15px; }
+.players li { list-style:none; background:#020617; padding:8px 12px; border-radius:8px; margin-bottom:6px; }
 
 /* ===== ROLE ===== */
-.role {
-    font-size: 28px;
-    font-weight: 800;
-    text-align: center;
-    margin: 25px 0;
-}
-
-.spy {
-    color: #ef4444;
-}
-
-.word {
-    color: #22c55e;
-}
+.role { font-size:28px; font-weight:800; text-align:center; margin:25px 0; }
+.spy { color:#ef4444; }
+.word { color:#22c55e; }
 
 /* ===== PROGRESS ===== */
-.progress {
-    text-align: center;
-    opacity: 0.8;
-    margin-top: 10px;
-}
+.progress { text-align:center; opacity:0.8; margin-top:10px; }
 
 /* ===== RESULT ===== */
-pre {
-    background: #020617;
-    border-radius: 10px;
-    padding: 15px;
-    white-space: pre-wrap;
-    margin-top: 15px;
-}
+pre { background:#020617; border-radius:10px; padding:15px; white-space:pre-wrap; margin-top:15px; }
 
 /* ===== HIDDEN ===== */
-.hidden {
-    display: none;
-}
+.hidden { display:none; }
 </style>
 </head>
 
@@ -151,7 +61,7 @@ pre {
         <ul id="players"></ul>
     </div>
 
-    <button id="startBtn">Начать игру</button>
+    <button id="startBtn" class="hidden">Начать игру</button>
 </div>
 
 <!-- GAME -->
@@ -163,103 +73,7 @@ pre {
     <pre id="result"></pre>
 </div>
 
-<script>
-let ws, lobbyId, username;
-
-// DOM
-const login = document.getElementById('login');
-const lobby = document.getElementById('lobby');
-const game = document.getElementById('game');
-
-const lobbyIdSpan = document.getElementById('lobbyId');
-const creatorSpan = document.getElementById('creator');
-const playersList = document.getElementById('players');
-const startBtn = document.getElementById('startBtn');
-const roleText = document.getElementById('role');
-const progressText = document.getElementById('progress');
-const resultText = document.getElementById('result');
-
-document.getElementById('loginBtn').onclick = connect;
-document.getElementById('voteBtn').onclick = vote;
-
-function connect() {
-    username = document.getElementById('name').value.trim();
-    if (!username) return alert('Введите ник');
-
-    ws = new WebSocket(
-        location.protocol==='https:'?`wss://${location.host}`:`ws://${location.host}`
-    );
-
-    ws.onopen = () => {
-        if (confirm('Создать лобби?')) {
-            ws.send(JSON.stringify({ type:'create_lobby', name:username }));
-        } else {
-            lobbyId = prompt('Введите ID лобби');
-            ws.send(JSON.stringify({ type:'join_lobby', name:username, lobbyId }));
-        }
-    };
-
-    ws.onmessage = e => {
-        const d = JSON.parse(e.data);
-
-        if(d.type==='lobby_created') {
-            lobbyId = d.lobbyId;
-            login.classList.add('hidden');
-            lobby.classList.remove('hidden');
-            lobbyIdSpan.textContent = lobbyId;
-            creatorSpan.textContent = username;
-            updatePlayers([username]);
-        }
-
-        if(d.type==='lobby_update') {
-            updatePlayers(d.players);
-            startBtn.style.display = d.host===username?'block':'none';
-        }
-
-        if(d.type==='game_started') {
-            lobby.classList.add('hidden');
-            game.classList.remove('hidden');
-
-            roleText.className = 'role ' + (d.role==='spy'?'spy':'word');
-            roleText.textContent = d.role==='spy' ? '😈 ТЫ ШПИОН' : `📄 ${d.word}`;
-            progressText.textContent = 'Проголосовали 0 из ' + d.totalPlayers;
-            resultText.textContent = '';
-        }
-
-        if(d.type==='vote_update') {
-            progressText.textContent = `Проголосовали ${d.voted} из ${d.total}`;
-        }
-
-        if(d.type==='game_ended') {
-            resultText.textContent =
-`🏁 Игра окончена
-Шпион: ${d.spy}
-Выбывший: ${d.eliminated}`;
-            progressText.textContent='';
-        }
-
-        if(d.type==='error') alert(d.message);
-    };
-
-    startBtn.onclick = () => {
-        ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
-    };
-}
-
-function vote() {
-    const v = prompt('Против кого?');
-    if(v) ws.send(JSON.stringify({ type:'vote', lobbyId, name:username, target:v }));
-}
-
-function updatePlayers(players) {
-    playersList.innerHTML='';
-    players.forEach(p => {
-        const li = document.createElement('li');
-        li.textContent = p;
-        playersList.appendChild(li);
-    });
-}
-</script>
+<script src="script.js"></script>
 
 </body>
 </html>
