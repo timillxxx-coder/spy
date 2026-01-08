@@ -11,17 +11,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const lobbies = {};
 
+const wordsByTheme = {
+    travel: ["Самолет","Отель","Пляж","Горы","Багаж"],
+    games: ["Марио","Покемон","Шахматы","Майнкрафт","Фортнайт"],
+    programming: ["JavaScript","Python","HTML","CSS","Node.js"]
+};
+
 function generateLobbyId(){ return Math.random().toString(36).substring(2,8).toUpperCase(); }
 
 function broadcastLobbyUpdate(lobbyId){
     const lobby = lobbies[lobbyId];
     if(!lobby) return;
-    const data = { type:'lobby_update', players: lobby.players.map(p=>p.name), host: lobby.host, lobbyId };
+    const data={ type:'lobby_update', players:lobby.players.map(p=>p.name), host:lobby.host, lobbyId };
     lobby.players.forEach(p=>p.ws.send(JSON.stringify(data)));
 }
 
 function broadcastVoteProgress(lobby){
-    lobby.players.forEach(p=>p.ws.send(JSON.stringify({ type:'vote_update', voted: lobby.votedCount, total: lobby.players.length })));
+    lobby.players.forEach(p=>p.ws.send(JSON.stringify({ type:'vote_update', voted:lobby.votedCount, total:lobby.players.length })));
 }
 
 wss.on('connection', ws=>{
@@ -29,11 +35,11 @@ wss.on('connection', ws=>{
     let playerName = null;
 
     ws.on('message', msg=>{
-        const data = JSON.parse(msg);
+        const data=JSON.parse(msg);
 
         if(data.type==='create_lobby'){
             const lobbyId = generateLobbyId();
-            lobbies[lobbyId] = { host:data.name, players:[{name:data.name, ws}], started:false, spy:null };
+            lobbies[lobbyId]={ host:data.name, players:[{name:data.name, ws}], started:false, spy:null, theme:'travel' };
             currentLobby = lobbyId;
             playerName = data.name;
             ws.send(JSON.stringify({ type:'lobby_created', lobbyId }));
@@ -50,18 +56,26 @@ wss.on('connection', ws=>{
             broadcastLobbyUpdate(data.lobbyId);
         }
 
+        if(data.type==='set_theme'){
+            const lobby = lobbies[data.lobbyId];
+            if(lobby && data.theme) lobby.theme = data.theme;
+        }
+
         if(data.type==='start_game' || data.type==='restart_game'){
             const lobby = lobbies[data.lobbyId];
             if(!lobby) return;
-            const words = ["Бумага", "Карандаш", "Стул", "Компьютер"];
+
+            const themeWords = wordsByTheme[lobby.theme] || wordsByTheme['travel'];
             const spyIndex = Math.floor(Math.random()*lobby.players.length);
+
             lobby.players.forEach((p,i)=>{
                 p.role = i===spyIndex ? 'spy' : 'word';
-                p.word = p.role==='word'? words[Math.floor(Math.random()*words.length)] : null;
-                p.voted=false;
+                p.word = p.role==='word' ? themeWords[Math.floor(Math.random()*themeWords.length)] : null;
+                p.voted = false;
             });
-            lobby.votedCount=0;
-            lobby.started=true;
+
+            lobby.votedCount = 0;
+            lobby.started = true;
 
             lobby.players.forEach(p=>{
                 p.ws.send(JSON.stringify({
@@ -79,23 +93,17 @@ wss.on('connection', ws=>{
             if(!lobby) return;
             const voter = lobby.players.find(p=>p.name===data.name);
             if(!voter || voter.voted) return;
-            voter.voted = true;
-            voter.voteTarget = data.target;
+            voter.voted=true;
+            voter.voteTarget=data.target;
             lobby.votedCount++;
             broadcastVoteProgress(lobby);
 
             if(lobby.votedCount === lobby.players.length){
-                // Определяем выбывшего (тот, кто получил больше всего голосов)
-                const votes = {};
-                lobby.players.forEach(p=>{
-                    if(p.voteTarget) votes[p.voteTarget]=(votes[p.voteTarget]||0)+1;
-                });
+                const votes={};
+                lobby.players.forEach(p=>{ if(p.voteTarget) votes[p.voteTarget]=(votes[p.voteTarget]||0)+1; });
                 const eliminated = Object.entries(votes).sort((a,b)=>b[1]-a[1])[0][0];
                 const spy = lobby.players.find(p=>p.role==='spy').name;
-
-                lobby.players.forEach(p=>{
-                    p.ws.send(JSON.stringify({ type:'game_ended', eliminated, spy }));
-                });
+                lobby.players.forEach(p=>p.ws.send(JSON.stringify({ type:'game_ended', eliminated, spy })));
             }
         }
     });
