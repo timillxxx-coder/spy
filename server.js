@@ -11,12 +11,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const lobbies = {}; // { lobbyId: { host: 'nick', players: [{name, ws, role}], started: false, spy: 'nick' } }
 
-// ===== ЛОББИ ID =====
 function generateLobbyId() {
     return Math.random().toString(36).substring(2,8).toUpperCase();
 }
 
-// ===== ЛОББИ UPDATE =====
 function broadcastLobbyUpdate(lobbyId){
     const lobby = lobbies[lobbyId];
     if(!lobby) return;
@@ -28,14 +26,12 @@ function broadcastLobbyUpdate(lobbyId){
     lobby.players.forEach(p=>p.ws.send(JSON.stringify(data)));
 }
 
-// ===== ПРОГРЕСС ГОЛОСОВАНИЯ =====
 function broadcastVoteProgress(lobby){
     lobby.players.forEach(p=>{
         p.ws.send(JSON.stringify({ type:'vote_update', voted: lobby.votedCount, total: lobby.players.length }));
     });
 }
 
-// ===== ПОДКЛЮЧЕНИЕ WS =====
 wss.on('connection', ws => {
     let currentLobby = null;
     let playerName = null;
@@ -77,8 +73,6 @@ wss.on('connection', ws => {
 
             const spyIndex = Math.floor(Math.random() * lobby.players.length);
             const word = 'Бумага';
-
-            // Сохраняем имя шпиона
             lobby.spy = lobby.players[spyIndex].name;
 
             lobby.players.forEach((p,i)=>{
@@ -88,11 +82,12 @@ wss.on('connection', ws => {
                     type:'game_started',
                     role,
                     word,
-                    totalPlayers: lobby.players.length
+                    totalPlayers: lobby.players.length,
+                    players: lobby.players.map(pl => pl.name) // список всех игроков
                 }));
             });
 
-            lobby.votes = {};       // { voter: target }
+            lobby.votes = {}; 
             lobby.votedCount = 0;
         }
 
@@ -108,7 +103,6 @@ wss.on('connection', ws => {
 
             broadcastVoteProgress(lobby);
 
-            // КОНЕЦ ГОЛОСОВАНИЯ
             if(lobby.votedCount >= lobby.players.length){
                 // Подсчёт голосов
                 const voteCounts = {};
@@ -116,7 +110,7 @@ wss.on('connection', ws => {
                     voteCounts[target] = (voteCounts[target] || 0) + 1;
                 });
 
-                // Игрок с максимальным количеством голосов
+                // Игрок с максимальным голосами
                 let maxVotes = 0;
                 let eliminated = null;
                 for(const [player, count] of Object.entries(voteCounts)){
@@ -138,7 +132,6 @@ wss.on('connection', ws => {
         }
     });
 
-    // ===== ОТКЛЮЧЕНИЕ ИГРОКА =====
     ws.on('close', () => {
         if(currentLobby && lobbies[currentLobby]){
             const lobby = lobbies[currentLobby];
@@ -147,7 +140,7 @@ wss.on('connection', ws => {
                 delete lobbies[currentLobby];
             } else {
                 if(lobby.host === playerName){
-                    lobby.host = lobby.players[0].name; // передаём хост
+                    lobby.host = lobby.players[0].name;
                 }
                 broadcastLobbyUpdate(currentLobby);
             }
@@ -155,6 +148,5 @@ wss.on('connection', ws => {
     });
 });
 
-// ===== ЗАПУСК =====
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, ()=>console.log(`Server running on port ${PORT}`));
