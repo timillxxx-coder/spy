@@ -1,4 +1,6 @@
 let ws, username, lobbyId;
+
+// DOM
 const login = document.getElementById('login');
 const lobby = document.getElementById('lobby');
 const game = document.getElementById('game');
@@ -14,26 +16,28 @@ const resultText = document.getElementById('result');
 document.getElementById('loginBtn').onclick = loginUser;
 document.getElementById('voteBtn').onclick = vote;
 
+// ===== ВХОД =====
 function loginUser() {
     username = document.getElementById('name').value.trim();
     if(!username) return alert('Введите ник');
 
-    ws = new WebSocket(location.protocol==='https:'?`wss://${location.host}`:`ws://${location.host}`);
+    ws = new WebSocket(location.protocol==='https:' ? `wss://${location.host}` : `ws://${location.host}`);
 
     ws.onopen = () => {
         const create = confirm('Создать лобби?');
-        if(create) ws.send(JSON.stringify({type:'create_lobby', name:username}));
+        if(create) ws.send(JSON.stringify({ type:'create_lobby', name:username }));
         else {
             lobbyId = prompt('Введите ID лобби');
             if(!lobbyId) return;
-            ws.send(JSON.stringify({type:'join_lobby', name:username, lobbyId}));
+            ws.send(JSON.stringify({ type:'join_lobby', name:username, lobbyId }));
         }
     };
 
     ws.onmessage = e => {
         const d = JSON.parse(e.data);
 
-        if(d.type==='lobby_created') {
+        // Лобби создано
+        if(d.type === 'lobby_created') {
             lobbyId = d.lobbyId;
             login.classList.add('hidden');
             lobby.classList.remove('hidden');
@@ -43,49 +47,59 @@ function loginUser() {
             startBtn.classList.remove('hidden');
         }
 
-        if(d.type==='lobby_update') {
+        // Лобби обновилось
+        if(d.type === 'lobby_update') {
             lobby.classList.remove('hidden');
             updatePlayers(d.players);
-            startBtn.classList.toggle('hidden', d.host!==username);
+            // Показываем кнопку Start только хосту
+            if(d.host === username) startBtn.classList.remove('hidden');
+            else startBtn.classList.add('hidden');
         }
 
-        if(d.type==='game_started') {
+        // Игра стартует
+        if(d.type === 'game_started') {
             lobby.classList.add('hidden');
             game.classList.remove('hidden');
 
-            roleText.className = 'role ' + (d.role==='spy'?'spy':'word');
-            roleText.textContent = d.role==='spy'?'😈 ТЫ ШПИОН':`📄 ${d.word}`;
+            roleText.className = 'role ' + (d.role === 'spy' ? 'spy' : 'word');
+            roleText.textContent = d.role === 'spy' ? '😈 ТЫ ШПИОН' : `📄 ${d.word}`;
             progressText.textContent = `Проголосовали 0 из ${d.totalPlayers}`;
             resultText.textContent = '';
         }
 
-        if(d.type==='vote_update') {
+        // Обновление голосования
+        if(d.type === 'vote_update') {
             progressText.textContent = `Проголосовали ${d.voted} из ${d.total}`;
         }
 
-        if(d.type==='game_ended') {
+        // Конец игры
+        if(d.type === 'game_ended') {
             resultText.textContent =
 `🏁 Игра окончена
 Шпион: ${d.spy}
 Выбывший: ${d.eliminated}`;
-            progressText.textContent='';
+            progressText.textContent = '';
         }
 
-        if(d.type==='error') alert(d.message);
+        if(d.type === 'error') alert(d.message);
     };
 
+    // Кнопка "Начать игру"
     startBtn.onclick = () => {
-        ws.send(JSON.stringify({type:'start_game', lobbyId, name:username}));
+        if(!lobbyId) return;
+        ws.send(JSON.stringify({ type:'start_game', lobbyId, name:username }));
     };
 }
 
+// ===== ГОЛОС =====
 function vote() {
     const v = prompt('Против кого?');
-    if(v) ws.send(JSON.stringify({type:'vote', lobbyId, name:username, target:v}));
+    if(v) ws.send(JSON.stringify({ type:'vote', lobbyId, name:username, target:v }));
 }
 
+// ===== СПИСОК ИГРОКОВ =====
 function updatePlayers(players) {
-    playersList.innerHTML='';
+    playersList.innerHTML = '';
     players.forEach(p => {
         const li = document.createElement('li');
         li.textContent = p;
